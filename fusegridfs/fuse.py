@@ -10,15 +10,16 @@ from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 from dateutil.tz import tzutc, tzlocal
+from logging import debug
 
 
 def logmethod(func):
     name = func.__name__
 
     def decorator(self, *args, **kwargs):
-        print('>>', name, args, kwargs)
+        debug('>> %s %s %s', name, args, kwargs)
         result = func(self, *args, **kwargs)
-        print('<<', name, result)
+        debug('<< %s %s', name, result)
         return result
 
     return decorator

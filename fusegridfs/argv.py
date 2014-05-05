@@ -17,3 +17,5 @@ parser.add_argument(
 parser.add_argument(
     '--collection', type=str, nargs='?', default='fs',
     help='GridFS collection to use (defaults to "fs")')
+parser.add_argument(
+    '--debug', action='store_true')

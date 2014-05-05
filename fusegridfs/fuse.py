@@ -9,6 +9,7 @@ from gridfs.errors import NoFile
 from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
+from dateutil.tz import tzutc, tzlocal
 
 
 def logmethod(func):
@@ -67,7 +68,8 @@ def grid2attrs(grid):
     entry.st_blksize = grid.chunk_size
     entry.st_blocks = int(grid.length / grid.chunk_size) + 1
 
-    utime = grid.upload_date.timestamp()
+    utime = grid.upload_date.replace(tzinfo=tzutc()).astimezone(
+        tzlocal()).timestamp()
     entry.st_ctime = utime
     entry.st_mtime = utime
     entry.st_atime = utime
@@ -116,7 +118,7 @@ class GridFSOperations(Operations):
             filename=name.decode(),
             aliases=[],
             length=0,
-            upload_date=datetime.utcnow())
+            upload_date=datetime.now())
         fh = oid2int(gridin._id)
         grid_cache[fh] = gridin
         return (fh, grid2attrs(gridin))

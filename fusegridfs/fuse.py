@@ -138,12 +138,14 @@ class GridFSOperations(Operations):
         del grid_cache[fh]
 
     @logmethod
-    def destroy(self):
-        Operations.destroy(self)
+    def forget(self, inode_list):
+
+        for inode in inode_list:
+            del oid_cache.ints[inode]
 
     @logmethod
-    def forget(self, inode_list):
-        Operations.forget(self, inode_list)
+    def destroy(self):
+        self.client.close()
 
     @logmethod
     def fsync(self, fh, datasync):

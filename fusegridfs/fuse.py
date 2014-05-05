@@ -1,51 +1,64 @@
-from stat import (S_IFDIR, S_IRUSR, S_IWUSR, S_IXUSR, S_IRGRP, S_IXGRP,
-    S_IROTH, S_IXOTH)
-from time import time
+from datetime import datetime
+from stat import S_IRUSR, S_IWUSR, S_IRGRP, S_IROTH, S_IFREG, S_IFDIR
 import errno
 import os
 
+from bidict import namedbidict
 from gridfs import GridFS
+from gridfs.errors import NoFile
 from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
-from bson.objectid import ObjectId
-from gridfs.errors import NoFile
 
 
 def logmethod(func):
     name = func.__name__
 
     def decorator(self, *args, **kwargs):
-        print(name, args, kwargs)
-        return func(self, *args, **kwargs)
+        print('>>', name, args, kwargs)
+        result = func(self, *args, **kwargs)
+        print('<<', name, result)
+        return result
 
     return decorator
 
 
+OIDCache = namedbidict('OIDCache', 'oids', 'ints')
+oid_cache = OIDCache()
+grid_cache = {}
+
+
 def int2oid(num):
-    return ObjectId(int.to_bytes(num, 12, 'big'))
+    # ObjectId(int.to_bytes(num, 12, 'big'))
+    return oid_cache.ints[num]
 
 
 def oid2int(oid):
-    return int(str(oid), 16)
+    # int(str(oid), 16)
+    if not oid in oid_cache.oids:
+        oid_cache.oids[oid] = len(oid_cache) + 2
+
+    return oid_cache.oids[oid]
 
 
 def grid2attrs(grid):
     entry = EntryAttributes()
 
-    entry.st_ino = 2  # oid2int(grid._id)
+    entry.st_ino = oid2int(grid._id)
     entry.generation = 0
     entry.entry_timeout = 0
     entry.attr_timeout = 0
     entry.st_mode = (
-#             S_IFDIR |
         S_IRUSR |
         S_IWUSR |
-        S_IXUSR |
         S_IRGRP |
-        S_IXGRP |
-        S_IROTH |
-        S_IXOTH)
+        S_IROTH)
+
+    if grid.content_type == 'text/directory':
+        entry.st_mode |= S_IFDIR
+    else:
+        entry.st_mode |= S_IFREG
+
     entry.st_nlink = (grid.aliases and len(grid.aliases) or 0) + 1
     entry.st_uid = os.getuid()
     entry.st_gid = os.getgid()
@@ -71,10 +84,18 @@ class GridFSOperations(Operations):
 
     @logmethod
     def init(self):
-#         root_id = int2oid(1)
-#         if not self.fs.exists(root_id):
-#             self.fs.put(b'', _id=root_id, content_type='text/directory')
         pass
+
+    @logmethod
+    def access(self, inode, mode, ctx):
+        return True
+
+    @logmethod
+    def getattr(self, inode):
+        if inode == 1:
+            return Operations.getattr(self, inode)
+        else:
+            return grid2attrs(self.fs.get(int2oid(inode)))
 
     @logmethod
     def lookup(self, parent_inode, name):
@@ -83,36 +104,40 @@ class GridFSOperations(Operations):
             raise FUSEError(errno.ENOENT)
 
         try:
-            gridout = self.fs.get_last_version(filename=name)
+            gridout = self.fs.get_last_version(filename=name.decode())
         except NoFile:
             raise FUSEError(errno.ENOENT)
 
-        print(grid2attrs(gridout).st_ino)
         return grid2attrs(gridout)
 
     @logmethod
     def create(self, inode_parent, name, mode, flags, ctx):
-        gridin = self.fs.new_file(filename=name.decode())
-        gridin.close()
-        return (gridin._id, grid2attrs(gridin))
+        gridin = self.fs.new_file(
+            filename=name.decode(),
+            aliases=[],
+            length=0,
+            upload_date=datetime.utcnow())
+        fh = oid2int(gridin._id)
+        grid_cache[fh] = gridin
+        return (fh, grid2attrs(gridin))
 
     @logmethod
-    def getattr(self, inode):
-#         if inode == 1:
-#             return self.root_attrs
-        return Operations.getattr(self, inode)
+    def flush(self, fh):
+        grid = grid_cache[fh]
+        grid.close()
 
     @logmethod
-    def access(self, inode, mode, ctx):
-        return True
+    def setattr(self, inode, attr):
+        gridout = self.fs.get(int2oid(inode))
+        return grid2attrs(gridout)
+
+    @logmethod
+    def release(self, fh):
+        del grid_cache[fh]
 
     @logmethod
     def destroy(self):
         Operations.destroy(self)
-
-    @logmethod
-    def flush(self, fh):
-        Operations.flush(self, fh)
 
     @logmethod
     def forget(self, inode_list):
@@ -167,10 +192,6 @@ class GridFSOperations(Operations):
         Operations.readlink(self, inode)
 
     @logmethod
-    def release(self, fh):
-        Operations.release(self, fh)
-
-    @logmethod
     def releasedir(self, fh):
         Operations.releasedir(self, fh)
 
@@ -188,16 +209,8 @@ class GridFSOperations(Operations):
         Operations.rmdir(self, inode_parent, name)
 
     @logmethod
-    def setattr(self, inode, attr):
-        Operations.setattr(self, inode, attr)
-
-    @logmethod
     def setxattr(self, inode, name, value):
         Operations.setxattr(self, inode, name, value)
-
-    @logmethod
-    def stacktrace(self):
-        Operations.stacktrace(self)
 
     @logmethod
     def statfs(self):

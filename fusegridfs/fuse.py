@@ -1,16 +1,16 @@
 from datetime import datetime
+from logging import debug
 from stat import S_IRUSR, S_IWUSR, S_IRGRP, S_IROTH, S_IFREG, S_IFDIR
 import errno
 import os
 
 from bidict import namedbidict
+from dateutil.tz import tzutc, tzlocal
 from gridfs import GridFS
 from gridfs.errors import NoFile
 from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
-from dateutil.tz import tzutc, tzlocal
-from logging import debug
 
 
 def logmethod(func):
@@ -85,6 +85,13 @@ class GridFSOperations(Operations):
         self.db = Database(self.client, db_name)
         self.fs = GridFS(self.db, collection_name)
 
+    def _new_file(self, name):
+        return self.fs.new_file(
+            filename=name,
+            aliases=[],
+            length=0,
+            upload_date=datetime.now())
+
     @logmethod
     def init(self):
         pass
@@ -115,11 +122,7 @@ class GridFSOperations(Operations):
 
     @logmethod
     def create(self, inode_parent, name, mode, flags, ctx):
-        gridin = self.fs.new_file(
-            filename=name.decode(),
-            aliases=[],
-            length=0,
-            upload_date=datetime.now())
+        gridin = self._new_file(name.decode())
         fh = oid2int(gridin._id)
         grid_cache[fh] = gridin
         return (fh, grid2attrs(gridin))
@@ -132,6 +135,15 @@ class GridFSOperations(Operations):
     @logmethod
     def setattr(self, inode, attr):
         gridout = self.fs.get(int2oid(inode))
+
+        if attr.st_size and attr.st_size < gridout.length:
+            gridout = self.fs.get_last_version(filename=gridout.name)
+            gridin = self._new_file(name=gridout.name)
+            gridin.write(gridout.read(attr.st_size))
+            gridin.close()
+            gridout = self.fs.get_last_version(filename=gridout.name)
+            grid_cache[inode] = gridout
+
         return grid2attrs(gridout)
 
     @logmethod
@@ -142,11 +154,38 @@ class GridFSOperations(Operations):
     def forget(self, inode_list):
 
         for inode in inode_list:
-            del oid_cache.ints[inode]
+            if inode in oid_cache.ints:
+                del oid_cache.ints[inode]
 
     @logmethod
     def destroy(self):
         self.client.close()
+
+    @logmethod
+    def open(self, inode, flags):
+        gridout = self.fs.get(int2oid(inode))
+        grid_cache[inode] = gridout
+        return inode
+
+    @logmethod
+    def read(self, fh, off, size):
+        gridout = grid_cache[fh]
+        gridout.seek(off)
+        return gridout.read(size)
+
+    @logmethod
+    def write(self, fh, off, buf):
+        gridout = grid_cache[fh]
+        gridin = self._new_file(name=gridout.name)
+        gridin.write(gridout.read(off))
+        gridin.write(buf)
+        pos = off + len(buf)
+        if gridout.length > pos:
+            gridout.seek(pos)
+            gridin.write(gridout.read())
+        gridin.close()
+        grid_cache[fh] = self.fs.get_last_version(filename=gridout.name)
+        return len(buf)
 
     @logmethod
     def fsync(self, fh, datasync):
@@ -177,16 +216,8 @@ class GridFSOperations(Operations):
         Operations.mknod(self, parent_inode, name, mode, rdev, ctx)
 
     @logmethod
-    def open(self, inode, flags):
-        Operations.open(self, inode, flags)
-
-    @logmethod
     def opendir(self, inode):
         Operations.opendir(self, inode)
-
-    @logmethod
-    def read(self, fh, off, size):
-        Operations.read(self, fh, off, size)
 
     @logmethod
     def readdir(self, fh, off):
@@ -228,7 +259,3 @@ class GridFSOperations(Operations):
     @logmethod
     def unlink(self, parent_inode, name):
         Operations.unlink(self, parent_inode, name)
-
-    @logmethod
-    def write(self, fh, off, buf):
-        Operations.write(self, fh, off, buf)

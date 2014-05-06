@@ -136,15 +136,6 @@ class GridFSOperations(Operations):
     @logmethod
     def setattr(self, inode, attr):
         gridout = self.fs.get(int2oid(inode))
-
-        if attr.st_size and attr.st_size < gridout.length:
-            gridout = self.fs.get_last_version(filename=gridout.name)
-            gridin = self._new_file(name=gridout.name)
-            gridin.write(gridout.read(attr.st_size))
-            gridin.close()
-            gridout = self.fs.get_last_version(filename=gridout.name)
-            grid_cache[inode] = gridout
-
         return grid2attrs(gridout)
 
     @logmethod

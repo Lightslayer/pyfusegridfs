@@ -8,10 +8,10 @@ from bidict import namedbidict
 from dateutil.tz import tzutc, tzlocal
 from gridfs import GridFS
 from gridfs.errors import NoFile
+from gridfs.grid_file import GridIn, GridOut
 from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
-from gridfs.grid_file import GridIn, GridOut
 
 
 def logmethod(func):

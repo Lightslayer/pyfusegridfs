@@ -18,4 +18,8 @@ parser.add_argument(
     '--collection', type=str, nargs='?', default='fs',
     help='GridFS collection to use (defaults to "fs")')
 parser.add_argument(
-    '--debug', action='store_true')
+    '--debug', action='store_true',
+    help='Run in debug mode')
+parser.add_argument(
+    '--single', action='store_true',
+    help='Use single thread')

@@ -13,7 +13,7 @@ operations = GridFSOperations(args.host, args.db, args.collection)
 llfuse.init(operations, args.mountpoint, ['fsname=gridfs'])
 
 try:
-    llfuse.main(single=True)
+    llfuse.main(single=args.single)
 except:
     llfuse.close()
     raise

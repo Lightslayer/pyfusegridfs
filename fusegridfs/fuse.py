@@ -11,6 +11,7 @@ from gridfs.errors import NoFile
 from llfuse import Operations, FUSEError, EntryAttributes
 from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
+from gridfs.grid_file import GridIn, GridOut
 
 
 def logmethod(func):
@@ -169,22 +170,28 @@ class GridFSOperations(Operations):
 
     @logmethod
     def read(self, fh, off, size):
-        gridout = grid_cache[fh]
-        gridout.seek(off)
-        return gridout.read(size)
+        grid = grid_cache[fh]
+
+        if isinstance(grid, GridIn):
+            grid.close()
+            grid = self.fs.get(int2oid(fh))
+            grid_cache[fh] = grid
+
+        grid.seek(off)
+        return grid.read(size)
 
     @logmethod
     def write(self, fh, off, buf):
-        gridout = grid_cache[fh]
-        gridin = self._new_file(name=gridout.name)
-        gridin.write(gridout.read(off))
-        gridin.write(buf)
-        pos = off + len(buf)
-        if gridout.length > pos:
-            gridout.seek(pos)
-            gridin.write(gridout.read())
-        gridin.close()
-        grid_cache[fh] = self.fs.get_last_version(filename=gridout.name)
+        grid = grid_cache[fh]
+
+        if isinstance(grid, GridOut):
+            offbuf = grid.read(off)
+            grid = self._new_file(name=grid.name)
+            grid_cache[fh] = grid
+            grid.write(offbuf)
+            del offbuf
+
+        grid.write(buf)
         return len(buf)
 
     @logmethod

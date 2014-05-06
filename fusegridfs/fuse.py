@@ -182,6 +182,10 @@ class GridFSOperations(Operations):
             grid.write(offbuf)
             del offbuf
 
+        if grid.closed:
+            grid = self._new_file(name=grid.name)
+            grid_cache[fh] = grid
+
         grid.write(buf)
         return len(buf)
 

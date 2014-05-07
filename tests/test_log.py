@@ -1,5 +1,10 @@
-from importlib import reload
+try:
+    from importlib import reload
+except ImportError:  # python<3.4
+    from imp import reload
+
 import logging
+
 import pytest
 
 from fusegridfs.log import setup_logging

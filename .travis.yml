@@ -1,5 +1,5 @@
 language: python
 python:
-  - "3.4"
+  - "3.3"
 install: pip install pytest -r requirements.txt --use-mirrors
 script: py.test tests

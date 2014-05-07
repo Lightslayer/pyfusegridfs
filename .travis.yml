@@ -4,5 +4,6 @@ python:
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y libfuse-dev
+  - sudo apt-get install -y libattr1-dev
 install: pip install -r requirements.txt
 script: py.test tests

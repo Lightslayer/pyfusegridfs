@@ -11,7 +11,7 @@ before_install:
   - sudo apt-get install -y libattr1-dev
 install:
   - pip install -r requirements.txt
-  - pip install coveralls
+  - pip install pytest-cov coveralls
 script:
   py.test --cov fusegridfs tests
 after_success:

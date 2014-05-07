@@ -1,5 +1,6 @@
 from datetime import datetime
 from logging import debug
+from math import ceil
 from stat import S_IRUSR, S_IWUSR, S_IRGRP, S_IROTH, S_IFREG, S_IFDIR
 import errno
 import os
@@ -66,7 +67,7 @@ def grid2attrs(grid):
     entry.st_rdev = 0
     entry.st_size = grid.length
     entry.st_blksize = grid.chunk_size
-    entry.st_blocks = int(grid.length / grid.chunk_size) + 1
+    entry.st_blocks = ceil(grid.length / grid.chunk_size)
 
     utime = grid.upload_date.replace(tzinfo=tzutc()).astimezone(
         tzlocal()).timestamp()

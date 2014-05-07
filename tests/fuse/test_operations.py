@@ -1,4 +1,7 @@
+from datetime import datetime
+from stat import S_IFREG, S_IRUSR, S_IWUSR, S_IRGRP, S_IROTH
 import errno
+import os
 
 from bson.objectid import ObjectId
 from gridfs import GridFS
@@ -8,10 +11,7 @@ from pymongo.database import Database
 from pymongo.mongo_client import MongoClient
 import pytest
 
-from fusegridfs.fuse import GridFSOperations, oid2int
-from datetime import datetime
-from stat import S_IFREG, S_IRUSR, S_IWUSR, S_IRGRP, S_IROTH
-import os
+from fusegridfs.fuse import GridFSOperations, oid2int, oid_cache, grid_cache
 
 
 @pytest.fixture(scope='module')
@@ -41,6 +41,8 @@ def data():
 
 @pytest.fixture
 def ops(utcnow, oid, filename, data):
+    oid_cache.clear()
+    grid_cache.clear()
     client = MongoClient()
     db = Database(client, 'test')
     files = Collection(db, 'fs.files')
@@ -126,3 +128,22 @@ def test_lookup_no_file(ops, filename):
     with pytest.raises(FUSEError) as excinfo:
         ops.lookup(1, b'nil')
     assert excinfo.value.errno == errno.ENOENT
+
+
+def test_create_new_file(ops, filename):
+    new_filename = 'new ' + filename
+    fh, entry = ops.create(1, new_filename.encode(), 33204, 34881, None)
+    assert fh == 2
+    assert entry.st_ino == 2
+    assert entry.st_size == 0
+    assert entry.st_blksize == 255 * 1024
+    assert entry.st_blocks == 0
+
+
+def test_create_same_file(ops, filename):
+    fh, entry = ops.create(1, filename.encode(), 33204, 34881, None)
+    assert fh == 2
+    assert entry.st_ino == 2
+    assert entry.st_size == 0
+    assert entry.st_blksize == 255 * 1024
+    assert entry.st_blocks == 0

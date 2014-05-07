@@ -32,12 +32,10 @@ grid_cache = {}
 
 
 def int2oid(num):
-    # ObjectId(int.to_bytes(num, 12, 'big'))
     return oid_cache.ints[num]
 
 
 def oid2int(oid):
-    # int(str(oid), 16)
     if not oid in oid_cache.oids:
         oid_cache.oids[oid] = len(oid_cache) + 2
 

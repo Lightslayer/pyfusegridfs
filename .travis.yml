@@ -3,6 +3,7 @@ env: PYTHONPATH='.'
 services:
   - mongodb
 python:
+  - "3.4"
   - "3.3"
 before_install:
   - sudo apt-get update -qq

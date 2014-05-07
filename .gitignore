@@ -1,5 +1,11 @@
+# basic
 .*
 !.gitignore
 *~
 *.pyc
+
+# venv
 /venv
+
+# travis-ci.com
+!.travis.yml

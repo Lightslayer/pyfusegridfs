@@ -1,0 +1,5 @@
+language: python
+python:
+  - "3.4"
+install: pip install pytest -r requirements.txt --use-mirrors
+script: py.test tests

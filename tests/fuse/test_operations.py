@@ -30,12 +30,17 @@ def oid():
 
 
 @pytest.fixture(scope='module')
+def filename():
+    return 'test name'
+
+
+@pytest.fixture(scope='module')
 def data():
     return b'test data'
 
 
 @pytest.fixture
-def ops(utcnow, oid, data):
+def ops(utcnow, oid, filename, data):
     client = MongoClient()
     db = Database(client, 'test')
     files = Collection(db, 'fs.files')
@@ -43,7 +48,7 @@ def ops(utcnow, oid, data):
     files.drop()
     chunks.drop()
     fs = GridFS(db)
-    fs.put(data, _id=oid, upload_date=utcnow)
+    fs.put(data, _id=oid, filename=filename, upload_date=utcnow)
     return GridFSOperations(client.host)
 
 
@@ -90,3 +95,34 @@ def test_getattr_file(ops, now, oid, data):
     assert entry.st_ctime - now.timestamp() < 1
     assert entry.st_mtime - now.timestamp() < 1
     assert entry.st_atime - now.timestamp() < 1
+
+
+def test_lookup_parent_not_1(ops, filename):
+    with pytest.raises(FUSEError) as excinfo:
+        ops.lookup(42, filename.encode())
+    assert excinfo.value.errno == errno.ENOENT
+
+
+def test_lookup_file(ops, filename, data, now):
+    entry = ops.lookup(1, filename.encode())
+    assert entry.st_ino == 2
+    assert entry.generation == 0
+    assert entry.entry_timeout == 0
+    assert entry.attr_timeout == 0
+    assert entry.st_mode == S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+    assert entry.st_nlink == 1
+    assert entry.st_uid == os.getuid()
+    assert entry.st_gid == os.getgid()
+    assert entry.st_rdev == 0
+    assert entry.st_size == len(data)
+    assert entry.st_blksize == 255 * 1024
+    assert entry.st_blocks == 1
+    assert entry.st_ctime - now.timestamp() < 1
+    assert entry.st_mtime - now.timestamp() < 1
+    assert entry.st_atime - now.timestamp() < 1
+
+
+def test_lookup_no_file(ops, filename):
+    with pytest.raises(FUSEError) as excinfo:
+        ops.lookup(1, b'nil')
+    assert excinfo.value.errno == errno.ENOENT

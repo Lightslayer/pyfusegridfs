@@ -1,4 +1,7 @@
 language: python
+env: PYTHONPATH='.'
+services:
+  - mongodb
 python:
   - "3.3"
 before_install:

@@ -9,5 +9,10 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y libfuse-dev
   - sudo apt-get install -y libattr1-dev
-install: pip install -r requirements.txt
-script: py.test tests
+install:
+  - pip install -r requirements.txt
+  - pip install coveralls
+script:
+  py.test --cov fusegridfs tests
+after_success:
+  coveralls

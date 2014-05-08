@@ -189,6 +189,15 @@ class GridFSOperations(Operations):
         return len(buf)
 
     @logmethod
+    def unlink(self, parent_inode, name):
+
+        if parent_inode != 1:
+            Operations.unlink(self, parent_inode, name)
+        else:
+            for gridout in self.fs.find({'filename': name.decode()}):
+                self.fs.delete(gridout._id)
+
+    @logmethod
     def fsync(self, fh, datasync):
         Operations.fsync(self, fh, datasync)
 
@@ -256,7 +265,3 @@ class GridFSOperations(Operations):
     @logmethod
     def symlink(self, inode_parent, name, target, ctx):
         Operations.symlink(self, inode_parent, name, target, ctx)
-
-    @logmethod
-    def unlink(self, parent_inode, name):
-        Operations.unlink(self, parent_inode, name)

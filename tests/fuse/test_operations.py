@@ -147,3 +147,18 @@ def test_create_same_file(ops, filename):
     assert entry.st_size == 0
     assert entry.st_blksize == 255 * 1024
     assert entry.st_blocks == 0
+
+
+def test_flush(ops, filename):
+
+    class GridMock:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    entry = ops.lookup(1, filename.encode())
+    fh = ops.open(entry.st_ino, 32768)
+    grid_cache[fh] = GridMock()
+    ops.flush(fh)
+    assert grid_cache[fh].closed
